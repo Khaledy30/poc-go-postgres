@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"poc-go/internal/validator/email"
 	"strings"
 )
 
@@ -19,8 +20,8 @@ func (s *Service) Create(ctx context.Context, input CreateUserInput) (*User, err
 	if strings.TrimSpace(input.Name) == "" {
 		return nil, errors.New("nome é obrigatório")
 	}
-	if strings.TrimSpace(input.Email) == "" {
-		return nil, errors.New("email é obrigatório")
+	if err := email.ValidateEmail(input.Email); err != nil {
+		return nil, err
 	}
 
 	return s.repo.Create(ctx, input)

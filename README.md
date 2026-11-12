@@ -2,7 +2,7 @@
 
 API REST de usuários em Go + PostgreSQL, com arquitetura em camadas inspirada em Clean Architecture e padrão Repository/Service.
 
-Projeto construído como estudo prático de Go: tipagem estática, gerenciamento de módulos, estrutura modular e integração com banco relacional.
+Projeto construído como estudo prático de Go, vindo de um background em Node.js, TypeScript, NestJS e SST (Serverless Stack Tool). A ideia é usar uma stack conhecida (API REST + banco relacional) como ponto de comparação para entender as diferenças de paradigma: tipagem estática, gerenciamento de módulos, tratamento de erros sem exceções e a forma mais explícita como Go lida com estrutura e dependências.
 
 ---
 
@@ -12,12 +12,12 @@ Projeto construído como estudo prático de Go: tipagem estática, gerenciamento
 - **PostgreSQL**
 - **chi** — router HTTP leve
 - **pgx** — driver nativo para PostgreSQL
+- **sqlc** — gera código Go type-safe a partir de queries SQL puras, evitando scans manuais e mantendo o schema do banco como fonte de verdade
 
 ---
 
 ## Estrutura do projeto
 
-```
 /cmd
   main.go              -> ponto de entrada, router e server
 /internal
@@ -26,12 +26,26 @@ Projeto construído como estudo prático de Go: tipagem estática, gerenciamento
     service.go         -> regras de negócio
     repository.go      -> acesso ao banco
     handler.go         -> adaptador HTTP
+  /database
+    db.go              -> conexão e configuração do banco
+    models.go          -> structs geradas (sqlc) a partir do schema
+    query.sql.go       -> queries geradas (sqlc) a partir do query.sql
+  /validator
+    /email
+      email_test.go    -> testes do validador de email
+      email.go         -> regras de validação de email
 /db
   /migrations
-    001_create_users.sql
-```
+    001_create_users.sql -> migration de criação da tabela users
+  query.sql              -> queries SQL usadas pelo sqlc
+  schema.sql             -> schema do banco usado pelo sqlc
 
-Cada camada tem uma única responsabilidade. O `service` não conhece HTTP. O `handler` não conhece banco. O `repository` não conhece regra de negócio.
+Cada camada tem uma única responsabilidade e depende apenas de abstrações, nunca de implementações concretas das outras:
+
+- O `handler` conhece o `service`, mas não sabe como os dados são persistidos.
+- O `service` conhece o `repository` (via interface), mas não sabe como o SQL é executado.
+- O `repository` executa o acesso ao banco, mas não decide regra de negócio.
+- O `validator` não depende de nenhuma camada acima — só recebe e valida o dado.
 
 ---
 
@@ -126,3 +140,34 @@ DELETE /users/1
 - **go.mod e go.sum:** o `go.mod` gerencia as dependências e suas versões; o `go.sum` garante a integridade criptográfica dos pacotes baixados.
 - **Arquitetura em camadas:** separar handler, service e repository deixa cada parte testável de forma independente, seguindo a mesma lógica da arquitetura hexagonal que uso no dia a dia com Node.js.
 - **Tratamento de erros em Go:** sem exceções, o erro é um valor retornado explicitamente. Isso obriga a tratar cada falha no lugar certo, o que torna o fluxo mais previsível.
+- **sqlc:** gera código Go type-safe a partir de queries SQL puras (`query.sql` → `query.sql.go`), evitando escrever manualmente scans de `*sql.Rows` e reduzindo o risco de erros de tipagem entre banco e aplicação, sem o overhead de uma ORM tradicional.
+- **Separação de validação (clean code):** extrair a validação de email para seu próprio pacote (`/validator/email`) manteve o `service` focado em regra de negócio, sem misturar responsabilidades. Deixa o código mais fácil de testar e reutilizar caso surjam outros validadores no projeto.
+- **Testes unitários com o pacote `testing`:** aprendi o padrão table-driven test — organizar casos de teste em um slice de structs e rodar cada um como subteste com `t.Run`. Isso deixa fácil adicionar novos cenários sem duplicar código, e identifica exatamente qual caso falhou no output.
+
+## Como testar
+
+O projeto usa o pacote `testing` nativo do Go, com testes table-driven.
+
+### Rodar todos os testes
+
+```bash
+go test ./...
+```
+
+### Rodar com mais detalhes (mostra cada subteste)
+
+```bash
+go test ./... -v
+```
+
+### Rodar testes de um pacote específico
+
+```bash
+go test ./internal/validator/email/...
+```
+
+### Ver cobertura de testes
+
+```bash
+go test ./... -cover
+```
