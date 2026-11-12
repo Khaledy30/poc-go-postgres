@@ -1,0 +1,32 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.go"
+      run: gofmt -l -s {staged_files}
+      fail_text: "Existem arquivos não formatados. Rode `gofmt -w .` antes de commitar."
+
+    vet:
+      glob: "*.go"
+      run: go vet ./...
+      fail_text: "go vet encontrou problemas no código."
+
+    test:
+      glob: "*.go"
+      run: go test ./...
+      fail_text: "Testes falhando. Corrija antes de commitar."
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        commit_msg=$(cat {1})
+        pattern="^(feat|fix|docs|style|refactor|test|chore|perf|build|ci)(\(.+\))?: .{1,}"
+        if ! echo "$commit_msg" | grep -qE "$pattern"; then
+          echo "Mensagem de commit fora do padrão Conventional Commits."
+          echo "Exemplos válidos:"
+          echo "  feat: adiciona validação de email"
+          echo "  fix(user): corrige erro no soft delete"
+          echo "  docs: atualiza README"
+          exit 1
+        fi
